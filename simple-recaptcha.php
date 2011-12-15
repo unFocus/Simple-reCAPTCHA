@@ -1,8 +1,8 @@
 <?php
 /*
 Plugin Name: Simple reCAPTCHA
-Plugin URI: http://github.com/unFocus/Simple-reCAPTCHA
-Description: Integrates reCAPTCHA with WordPress.
+Plugin URI: wordpress.org/extend/plugins/simple-recaptcha/
+Description: Integrates reCAPTCHA with WordPress. First Release protects the registration form.
 Version: 1.0
 Author: Ken Newman
 Author URI: http://www.unfocus.com
@@ -33,19 +33,17 @@ class Simple_reCAPTCHA
 		add_action( 'plugins_loaded', array( __CLASS__, 'upgrade_check' ) );
 		add_action( 'admin_init', array( __CLASS__, 'load_plugin_textdomain' ) );
 		register_activation_hook( __FILE__, array( __CLASS__, 'upgrade' ) );
-		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
+		add_action( "load-options.php", array( __CLASS__, 'register_settings' ) );
+		add_action( "load-options-general.php", array( __CLASS__, 'add_settings' ) );
 		
 		$option = get_option( self::OPTION_NAME );
 		
-		if ( 'yes' == $option[ 'registration' ] ) {
+		if ( isset( $option[ 'registration' ] ) && 'yes' == $option[ 'registration' ] ) {
 			add_action( 'login_enqueue_scripts', array( __CLASS__, 'login_enqueue_scripts' ) );
 			add_action( 'register_form', array( __CLASS__, 'reCAPTCHA' ) );
 			add_filter( 'shake_error_codes', array( __CLASS__, 'shake_error_codes' ) );
 			add_filter( 'registration_errors', array( __CLASS__, 'validate' ) );
 		}
-		/*if ( 'yes' == $option[ 'comments' ] ) {
-			add_action( 'comment_form_after_fields', array( __CLASS__, 'reCAPTCHA' ) );
-		}*/
 	}
 	function shake_error_codes( $shake_error_codes ) {
 		return array_merge( $shake_error_codes,  array(
@@ -54,20 +52,17 @@ class Simple_reCAPTCHA
 			'incorrect-captcha-sol',
 			'recaptcha-not-reachable',
 			'invalid-request-cookie',
-			//'recaptcha_result',
 			'invalid-site-private-key'
 			) );
 	}
 	function validate( $errors ) {
 		if ( empty( $_POST[ 'recaptcha_challenge_field' ] ) || empty( $_POST[ 'recaptcha_response_field' ] ) ) {
-			add_filter( 'login_message', '__return_false' );
 			$errors->add( 'blank_captcha_sol', __( '<strong>ERROR</strong>: You can not register without passing reCAPTCHA.' ) );
 			return $errors;
 		}
 		
 		$option = get_option( self::OPTION_NAME );
 		if ( empty( $option[ 'private_key' ] ) || empty( $option[ 'public_key' ] ) ) {
-			add_filter( 'login_message', '__return_false' );
 			$errors->add( 'incorrect_captcha_config', __( '<strong>ERROR</strong>: reCAPTCHA incorrectly configured: Missing key.' ) );
 			return $errors;
 		}
@@ -84,7 +79,6 @@ class Simple_reCAPTCHA
 		$result = wp_remote_post( $url, $args );
 		
 		if ( '200' != $result[ 'response' ][ 'code' ] ) {
-			add_filter( 'login_message', '__return_false' );
 			$errors->add( 'recaptcha-not-reachable', __( '<strong>ERROR</strong>: Unable to contact the reCAPTCHA verify server: ' . $result[ 'response' ][ 'code' ] ) );
 			return $errors;
 		}
@@ -93,23 +87,18 @@ class Simple_reCAPTCHA
 		if ( 'false' == $response[0] ) {
 			switch ( $response[1] ) {
 				case 'incorrect-captcha-sol':
-					add_filter( 'login_message', '__return_false' );
 					$errors->add( 'incorrect-captcha-sol', __( '<strong>ERROR</strong>: reCAPTCHA sollution was incorrect.' ) );
 				break;
 				case 'invalid-site-private-key':
-					add_filter( 'login_message', '__return_false' );
 					$errors->add( 'invalid-site-private-key', __( '<strong>ERROR</strong>: reCAPTCHA incorrectly configured: Invalid Key.' ) );
 				break;
 				case 'invalid-request-cookie':
-					add_filter( 'login_message', '__return_false' );
 					$errors->add( 'invalid-request-cookie', __( '<strong>ERROR</strong>: Invalid Request Cookie. Sad Face.' ) );
 				break;
 			}
-			add_filter( 'login_message', '__return_false' );
 		} else if ( 'true' == $response[0]  ) {
 			return $errors;
 		} else {
-			add_filter( 'login_message', '__return_false' );
 			$errors->add( 'recaptcha_result', 'Unknown error: <pre>' . print_r( $result, true ) . '</pre>' );
 		}
 		return $errors;
@@ -126,39 +115,43 @@ class Simple_reCAPTCHA
 	<?php }
 	function reCAPTCHA() {
 		$option = get_option( self::OPTION_NAME );
-		//$public_key = "6LddNMsSAAAAAJX8eJeTG1aOBJG0zc1Cp2RYLTL9";
-		//$private_key = "6LddNMsSAAAAAJz9ctsxTxWVICqj4FNVa04yOJ4Y";
-		$public_key = $option[ 'public_key' ];
-		?>
-		<script type="text/javascript" src="//www.google.com/recaptcha/api/challenge?k=<?php echo $public_key ?>"></script>
-		<noscript>
-		   <iframe src="//www.google.com/recaptcha/api/noscript?k=<?php echo $public_key ?>" height="300" width="500" frameborder="0"></iframe><br>
-		   <textarea name="recaptcha_challenge_field" rows="3" cols="40"></textarea>
-		   <input type="hidden" name="recaptcha_response_field" value="manual_challenge">
-		</noscript>
-		<?php
-	}
-	
-	function admin_menu() {
-		add_action( "load-options.php", array( __CLASS__, 'register_settings' ) );
-		add_action( "load-options-general.php", array( __CLASS__, 'add_settings' ) );
-		add_action( "load-options-general.php", array( __CLASS__, 'help' ) );
+		if ( isset( $option[ 'public_key' ] ) ) {
+			$public_key = $option[ 'public_key' ];
+			?>
+			<script type="text/javascript" src="//www.google.com/recaptcha/api/challenge?k=<?php echo $public_key ?>"></script>
+			<noscript>
+			   <iframe src="//www.google.com/recaptcha/api/noscript?k=<?php echo $public_key ?>" height="300" width="500" frameborder="0"></iframe><br>
+			   <textarea name="recaptcha_challenge_field" rows="3" cols="40"></textarea>
+			   <input type="hidden" name="recaptcha_response_field" value="manual_challenge">
+			</noscript>
+			<?php
+		}
 	}
 	function validate_settings( $input ) {
 		$option = array();
 		extract( $input );
-		$option[ 'registration' ] = ( isset( $registration ) ) ? 'yes': 'no';
-		$option[ 'comments' ]     = ( isset( $comments ) )     ? 'yes': 'no';
 		
 		$public_key = sanitize_html_class( $public_key );
+		if ( 40 == strlen( $public_key ) ) {
+			$option[ 'public_key' ] = $public_key;
+		} else if ( ! empty( $public_key ) ) {
+			add_settings_error( self::OPTION_NAME, 'public_key', '<strong>ERROR</strong>: reCAPTCHA keys should contain 40 characters and no spaces.', 'error' );
+		}
+		
 		$private_key = sanitize_html_class( $private_key );
+		if ( 40 == strlen( $private_key ) ) {
+			$option[ 'private_key' ] = $private_key;
+		} else if ( ! empty( $public_key ) ) {
+			add_settings_error( self::OPTION_NAME, 'private_key', '<strong>ERROR</strong>: reCAPTCHA keys should contain 40 characters and no spaces.', 'error' );
+		}
 		
-		if ( 40 == strlen( $public_key ) ) $option[ 'public_key' ] = $public_key;
-		else add_settings_error( self::OPTION_NAME, 'public_key', '<strong>ERROR</strong>: reCAPTCHA keys should contain 40 characters.', 'error' );
-		
-		if ( 40 == strlen( $private_key ) ) $option[ 'private_key' ] = $private_key;
-		else add_settings_error( self::OPTION_NAME, 'private_key', '<strong>ERROR</strong>: reCAPTCHA keys should contain 40 characters.', 'error' );
-		
+		if ( isset( $option[ 'public_key' ] ) && isset( $option[ 'private_key' ] ) ) {
+			if ( isset( $registration ) )
+				$option[ 'registration' ] = 'yes';
+		} else {
+			if ( isset( $registration ) )
+				add_settings_error( self::OPTION_NAME, 'keys', '<strong>ERROR</strong>: Both reCAPTCHA keys must be set in order to use it on the registration form.', 'error' );
+		}
 		return $option;
 	}
 	function register_settings() {
@@ -183,22 +176,11 @@ class Simple_reCAPTCHA
 			'recaptcha',
 			array(
 				'label_for' => 'registration',
+				'label' => __( 'Yes', 'simple-recaptcha' ),
 				'setting' => self::OPTION_NAME,
-				//'description' => __( '<span class="description" style="max-width: 500px; display: inline-block;">Use for registration.</span>', 'simple-recaptcha' ),
+				'value' => 'yes',
 				'legend' => __( 'Use for registration', 'simple-recaptcha' )
 			) );
-		/*add_settings_field(
-			'comments',
-			__( 'Use for comments: ', 'simple-recaptcha' ),
-			array( __CLASS__, 'checkbox' ),
-			'general',
-			'recaptcha',
-			array(
-				'label_for' => 'comments',
-				'setting' => self::OPTION_NAME,
-				//'description' => __( '<span class="description" style="max-width: 500px; display: inline-block;">Use for comments.</span>', 'simple-recaptcha' ),
-				'legend' => __( 'Use for comments', 'simple-recaptcha' )
-			) );*/
 			
 		add_settings_field(
 			'public_key',
@@ -211,7 +193,6 @@ class Simple_reCAPTCHA
 				'setting' => self::OPTION_NAME,
 				'legend' => __( 'Public Key', 'simple-recaptcha' ),
 				'class' => 'regular-text',
-				//'description' => __( '<span class="description" style="max-width: 500px; display: inline-block;">Use for comments.</span>', 'simple-recaptcha' ),
 				'placeholder' => __( 'Public Key', 'simple-recaptcha' )
 			) );
 		add_settings_field(
@@ -225,35 +206,8 @@ class Simple_reCAPTCHA
 				'setting' => self::OPTION_NAME,
 				'legend' => __( 'Private Key', 'simple-recaptcha' ),
 				'class' => 'regular-text',
-				//'description' => __( '<span class="description" style="max-width: 500px; display: inline-block;">Use for comments.</span>', 'simple-recaptcha' ),
 				'placeholder' => __( 'Private Key', 'simple-recaptcha' )
 			) );
-	}
-	function help() {
-		$help    = '<p>' . __( 'There shall eventually be help text.', 'simple-recaptcha' ) . '</p>';
-		$sidebar = '<p><strong>' . __( 'For more information:', 'simple-recaptcha' ) . '</strong></p>' .
-					'<p>' . __( '<a href="http://wordpress.org/extend/plugins/simple-recaptcha/faq/" target="_blank">Frequently Asked Questions</a>', 'simple-recaptcha' ) . '</p>' .
-					'<p>' . __( '<a href="https://github.com/unFocus/simple-recaptcha" target="_blank">Source on github</a>', 'simple-recaptcha' ) . '</p>' .
-					'<p>' . __( '<a href="http://wordpress.org/tags/simple-recaptcha" target="_blank">Support Forums</a>', 'simple-recaptcha' ) . '</p>';
-		$screen = get_current_screen();
-		if ( method_exists( $screen, 'add_help_tab' ) ) {
-			if ( 'post' == $screen->base ) {
-				$screen->add_help_tab( array(
-					'title' => __( 'reCAPTCHA', 'simple-recaptcha' ),
-					'id' => 'simple-recaptcha',
-					'content' => $help . $sidebar
-					) );
-			} else {
-				$screen->add_help_tab( array(
-					'title' => __( 'reCAPTCHA', 'simple-recaptcha' ),
-					'id' => 'simple-recaptcha',
-					'content' => $help
-					) );
-				$screen->set_help_sidebar( $sidebar );
-			}
-		} else {
-			add_contextual_help( $screen, $help . $sidebar );
-		}
 	}
 	function load_plugin_textdomain() {
 		load_plugin_textdomain( 'simple-recaptcha', false, 'simple-recaptcha/lang' );
@@ -300,20 +254,19 @@ class Simple_reCAPTCHA
 		if ( isset( $setting ) ) {
 			$name = ' name="' . $setting . '[' . $label_for . ']"';
 			$option = get_option( $setting );
-			$value = isset( $option[ $label_for ] ) ? ' value="' . $option[ $label_for ] . '"': '';
+			$option = isset( $option[ $label_for ] ) ? $option[ $label_for ]: false;
 		} else {
 			$name = ' name="' . $label_for . '"';
 			$option = get_option( $label_for );
-			$value = isset( $option ) ? ' value="' . $option . '"': '';
 		}
 		echo ( $legend ) ? '<fieldset><legend class="screen-reader-text"><span>' . $legend . '</span></legend>': '';
 		$style =  isset( $style ) ? ' style="' . $style . '"': '';
+		$label = isset( $label ) ? $label: $value;
+		$value = empty( $value ) ? '': ' value="' . $value . '"';
+		$checked = checked( $option, 'yes', false );
 		$class =  isset( $class ) ? ' class="' . $class . '"': '';
 		$id = ' id="' . $label_for . '"';
-		$checked = checked( $option[ $label_for ], 'yes', false );
-		echo '<input type="checkbox"' . $value . $name . $id . $style . $class . $checked . '>';
-		if ( isset( $label ) && ! empty( $label ) )
-			echo '<label style="display: inline-block; width: 94px; margin: 0 5px; padding: 0 8px" for="' . $label_for . '">' . $label . '</label>';
+		echo '<label><input type="checkbox"' . $value . $name . $id . $style . $class . $checked . '> ' . $label . '</label>';
 		if ( isset( $description ) && ! empty( $description ) ) echo $description;
 		echo ( $legend ) ? '</fieldset>': '';
 	}
