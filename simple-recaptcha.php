@@ -45,6 +45,7 @@ class Simple_reCAPTCHA
 			add_filter( 'registration_errors', array( __CLASS__, 'validate' ) );
 		}
 	}
+	
 	function shake_error_codes( $shake_error_codes ) {
 		return array_merge( $shake_error_codes,  array(
 			'blank_captcha_sol',
@@ -53,8 +54,9 @@ class Simple_reCAPTCHA
 			'recaptcha-not-reachable',
 			'invalid-request-cookie',
 			'invalid-site-private-key'
-			) );
+		) );
 	}
+	
 	function validate( $errors ) {
 		if ( empty( $_POST[ 'recaptcha_challenge_field' ] ) || empty( $_POST[ 'recaptcha_response_field' ] ) ) {
 			$errors->add( 'blank_captcha_sol', __( '<strong>ERROR</strong>: You can not register without passing reCAPTCHA.' ) );
@@ -103,7 +105,9 @@ class Simple_reCAPTCHA
 		}
 		return $errors;
 	}
-	function login_enqueue_scripts() { ?>
+	
+	function login_enqueue_scripts() {
+		?>
 		<style>
 			#login {
 				width: 375px;
@@ -112,7 +116,9 @@ class Simple_reCAPTCHA
 				margin-bottom: 16px;
 			}
 		</style>
-	<?php }
+		<?php
+	}
+	
 	function reCAPTCHA() {
 		$option = get_option( self::OPTION_NAME );
 		if ( isset( $option[ 'public_key' ] ) ) {
@@ -127,6 +133,7 @@ class Simple_reCAPTCHA
 			<?php
 		}
 	}
+	
 	function validate_settings( $input ) {
 		$option = array();
 		extract( $input );
@@ -154,6 +161,7 @@ class Simple_reCAPTCHA
 		}
 		return $option;
 	}
+	
 	function register_settings() {
 		register_setting(
 			'general',
@@ -161,6 +169,7 @@ class Simple_reCAPTCHA
 			array( __CLASS__, 'validate_settings' )
 			);
 	}
+	
 	function add_settings() {
 		add_settings_section(
 			'recaptcha',
@@ -209,6 +218,8 @@ class Simple_reCAPTCHA
 				'placeholder' => __( 'Private Key', 'simple-recaptcha' )
 			) );
 	}
+	
+	
 	function load_plugin_textdomain() {
 		load_plugin_textdomain( 'simple-recaptcha', false, 'simple-recaptcha/lang' );
 	}
@@ -223,6 +234,8 @@ class Simple_reCAPTCHA
 		$options[ 'version' ] = self::VERSION;
 		update_option( self::OPTION_NAME, $options );
 	}
+	
+	
 	/* Utilities */
 	function input( $args ) {
 		extract( $args );
